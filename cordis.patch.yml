@@ -1,0 +1,3 @@
+- insert:
+    - id: cache-keepalive
+      name: '@local/dsh-cache-temperature'

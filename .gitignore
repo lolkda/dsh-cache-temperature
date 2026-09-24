@@ -1,0 +1,13 @@
+node_modules/
+coverage/
+*.tsbuildinfo
+*.tgz
+
+# 打包产物与运行期取证目录：只保留源码与已构建的 lib/
+artifacts/
+test-results/
+
+# 本机/沙箱运行期状态，禁止入库
+.credentials*
+*.log
+.DS_Store

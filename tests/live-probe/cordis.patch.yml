@@ -1,0 +1,6 @@
+- insert:
+    - id: cache-temperature-live-check
+      name: '@local/dsh-cache-temperature-live-check'
+      config:
+        targetSessionId: 'session-c732dc82-7f79-4cba-902a-bb2911563cfa'
+        outputPath: '/app/project/dsh-cache-temperature/test-results/live-proof-sdk-minimum.json'

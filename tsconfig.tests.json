@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node", "react", "react-dom", "vitest/globals"],
+    "jsx": "react-jsx",
+    "rootDir": "."
+  },
+  "include": ["tests/**/*.ts", "tests/**/*.tsx", "*.config.ts"]
+}
