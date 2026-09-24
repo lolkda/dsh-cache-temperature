@@ -12,21 +12,19 @@ name: release
 #
 #   dsh plugin --profile web add @lolkda/dsh-cache-temperature@next
 #
-# Authentication is the NPM_TOKEN repository secret. Two facts about it, both learned on
-# the first release attempt (run 36012163358, which got as far as `npm error code EOTP`):
+# Authentication is npm trusted publishing (OIDC): there is no NPM_TOKEN secret here, and
+# none is wanted. The runner's OIDC token is exchanged for a short-lived publish
+# credential, so there is no long-lived write token to leak or rotate, and npm attaches
+# provenance. `id-token: write` below is what makes that exchange possible.
 #
-# 1. This account has 2FA enabled, so a granular token whose bypass-2FA flag is off cannot
-#    publish directly — npm demands a one-time password, which a runner cannot supply. The
-#    secret therefore has to hold a granular token with bypass-2FA enabled (`bypass_2fa:
-#    true`; check it with `curl -H "Authorization: Bearer $TOKEN"
-#    https://registry.npmjs.org/-/npm/v1/tokens`). npm is targeting January 2027 to remove
-#    direct publishing from bypass-2FA tokens, so this is a bootstrap mechanism, not the
-#    destination: https://github.blog/changelog/2026-07-31-restricting-npm-bypass-2fa-granular-access-tokens/
+# Trusted publishing only exists for a package that is already on the registry, so it can
+# never cover the very first publish. The one-time bootstrap is done by a maintainer with
+# 2FA, either locally:
 #
-# 2. The destination is trusted publishing (OIDC), which needs no secret and cannot leak
-#    one. It cannot be configured up front — npm only offers the setting on a package that
-#    already exists, so the first publish has to happen by token first. Afterwards, set it
-#    up once on the package page:
+#   npm login                          # browser or OTP
+#   npm publish --access public --tag next
+#
+# or from this repo once the package exists. Configure the trusted publisher afterwards:
 #
 #   npmjs.com -> @lolkda/dsh-cache-temperature -> Settings -> Trusted Publisher
 #     Organization or user: lolkda
@@ -35,8 +33,9 @@ name: release
 #     Environment:          (leave empty)
 #     Allowed actions:      npm publish
 #
-#   then delete the NPM_TOKEN secret and the NODE_AUTH_TOKEN line below. `id-token: write`
-#   is already in place: npm exchanges this run's OIDC token for a short-lived credential.
+# Until that configuration exists, the publish step below fails — an earlier attempt using
+# a token instead failed here with `npm error code EOTP`, because this account has 2FA and
+# the token did not bypass it (run 36012163358).
 on:
   push:
     tags: ['v*']
@@ -49,7 +48,7 @@ on:
 
 permissions:
   contents: write   # open the GitHub release
-  id-token: write   # provenance, and trusted publishing once it is configured
+  id-token: write   # exchange for the publish credential, and sign provenance
 
 jobs:
   publish:
@@ -62,7 +61,6 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -90,10 +88,10 @@ jobs:
             exit 1
           fi
 
+      # No token and no registry-url: the registry and public access come from
+      # publishConfig in package.json, and npm detects the OIDC environment on its own.
       - name: publish to npm
         if: github.event_name == 'push' || inputs.publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           version="$(node -p "require('./package.json').version")"
           # A prerelease must not take `latest` away from the newest stable: this plugin's
