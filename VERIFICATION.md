@@ -1,16 +1,18 @@
 # 验证记录
 
-## 当前交付状态（0.2.1-rc.1）
+## 当前交付状态（0.2.1-rc.2）
 
-- 目标包：`@lolkda/dsh-cache-temperature@0.2.1-rc.1`（发布身份；此前工作区内的占位名 `@local/dsh-cache-temperature` 已弃用），构建产物 `artifacts/dsh-0.1.7-rc.1-fixed/local-dsh-cache-temperature-0.2.1-rc.1.tgz`。
+- 目标包：`@lolkda/dsh-cache-temperature`，已发布到 npm 两个版本：`0.2.1-rc.1`（维护者 2FA 手工首发布，`latest` 与 `next` 都指向它——npm 会把首次发布的版本强制设为 `latest`）与 `0.2.1-rc.2`（CI 零 secret OIDC 发布，`next` 指向它，`latest` 保持 rc.1）。工作区构建产物 `artifacts/dsh-0.1.7-rc.1-fixed/local-dsh-cache-temperature-0.2.1-rc.1.tgz`。
 - 已通过 `dsh plugin --profile web add` 写入当前 Web Profile（`/app/.dsh/profiles/web`），安装副本的 `lib/index.js` 与工作区构建逐字节一致。
 - **激活仍为 `restart-required`：运行中的 DSH 进程加载的是旧模块，必须重启进程；刷新网页不能代替。** 重启后必须重新确认页面控件可用。
 - 改名影响面已核对：设置命名空间仍为 `cache-keepalive`，与包名无关，已保存的会话设置不受影响；但 loader 条目 `cordis.patch.yml` 与浏览器 bundle banner 必须同时指向新包名，否则安装后无法解析。两处已改，并由 `tests/integration/built-artifacts.test.ts`（产物 id 必须等于 manifest 名称）与 `tests/shared/configuration.test.ts`（patch 名称必须等于 manifest 名称）分别守住，两个守卫都先观察过 RED。
 - 发布链路：`.github/workflows/ci.yml` 在 push main 与 PR 上跑完整检查加两道门禁；`.github/workflows/release.yml` 只由 `v*` tag 触发，发布前校验 tag 与 `package.json` 版本一致，预发布发到 dist-tag `next`。CI 已在真实 runner 上跑通（run 36011891738），release 的非发布路径也已跑通（run 36011919566）。
-- 发布认证最终采用 npm trusted publishing（OIDC）：无 `NPM_TOKEN` secret，`id-token: write` 换取短时凭据。两次实测都失败在发布这一步，且原因不同、都已定性：
-  1. run 36012163358（推 tag `v0.2.1-rc.1`，commit `855ce8f`，与 main HEAD 一致）：安装、类型检查、lint、构建、198 个测试、两道门禁、tag 与版本一致性校验全部通过，`npm publish` 失败于 `npm error code EOTP`——账号启用 2FA 而当时 token `bypass_2fa: false`，runner 无法提供一次性口令。
-  2. run 36016013119（改用 OIDC 后 dispatch）：失败于 `npm error code ENEEDAUTH`。npm 的 `oidc()` 交换失败时不抛错，publish 随后因无任何凭据才报此错（npm CLI `lib/commands/publish.js`、`lib/utils/oidc.js`）；上一次运行中 provenance 签名成功，说明 `id-token` 环境变量确实可用，排除权限问题。即 OIDC 已被走到，只是该包尚无 trusted publisher 配置。
-- **npm 上仍未发布，`@lolkda/dsh-cache-temperature` 为 404；两次失败都没有产生任何 registry 写入，没有半成品版本。** 原因不是配置缺陷，而是 npm 只在已存在的包上开放 trusted publisher 设置，首次发布必须由维护者用 2FA 手工完成一次；之后 CI 才能零 secret 发布。**因此 OIDC 发布成功的路径尚未端到端验证过，不能报告为已验证。** 步骤见 README 发布一节。
+- 发布认证最终采用 npm trusted publishing（OIDC）：无 `NPM_TOKEN` secret（已删除），`id-token: write` 换取短时凭据。整条链路已闭环验证：
+  1. run 36012163358（推 tag `v0.2.1-rc.1`）：安装、类型检查、lint、构建、198 个测试、两道门禁、tag 与版本一致性校验全部通过，`npm publish` 失败于 `npm error code EOTP`——账号启用 2FA 而当时 token `bypass_2fa: false`，runner 无法提供一次性口令。
+  2. run 36016013119（改用 OIDC 后 dispatch）：失败于 `npm error code ENEEDAUTH`。npm 的 `oidc()` 交换失败时不抛错，publish 随后因无任何凭据才报此错（npm CLI `lib/commands/publish.js`、`lib/utils/oidc.js`）。此时包尚不存在，无 trusted publisher 可匹配，属预期。
+  3. 首次发布：以 `npm login --auth-type=web` 取得交互式会话，在伪终端（`script -qec ...`）下完成 npm 的浏览器批准 2FA，`npm publish --access public --tag next` 发布 `0.2.1-rc.1`；随后 `npm trust github @lolkda/dsh-cache-temperature --file release.yml --repo lolkda/dsh-cache-temperature --allow-publish` 登记信任配置，id `09cbd118-5299-4881-b1e7-2339d07dee3d`，权限 `publish, stage publish`。核验：下载 tarball 的 sha1 与发布时 registry 报的 `c5130e1fb4eaa246d6d72e92262b8696724a7795` 一致，sha512 与 integrity 一致，15 个文件，包内 `cordis.patch.yml` 指向新包名，`npm pack @lolkda/dsh-cache-temperature@next` 可正常取包。
+  4. **零 secret 的 CI 发布（本轮最终验证点）**：推 tag `v0.2.1-rc.2` 触发 run 36022617711，全部步骤通过，日志含 `publishing 0.2.1-rc.2 under dist-tag next`、`Signed provenance statement`、`Provenance statement published to transparency log`（sigstore logIndex 2940998946）；registry 侧 `dist-tags = {next: 0.2.1-rc.2, latest: 0.2.1-rc.1}`，`dist.attestations` 含 SLSA provenance v1，`dist.signatures` 存在，tarball 可取且 sha1 与 registry 记录一致，`repository` 元数据正确。
+- 两条与 npm 行为相关的实测结论已写入 README：非交互环境下 npm 的 2FA 会直接失败（`otplease` 先检查 `process.stdin.isTTY`），需要伪终端才能走浏览器批准；发布被接受后 registry 仍有约 4–6 分钟的可用性延迟（先 packument、后 tarball），期间 404 不是失败。**注意不要把这类延迟误报成发布失败——本轮我先误判过一次，随后用 `?nc=<时间戳>` 绕过 CDN 缓存与 `?write=true` 权威读取才定性。**
 
 ### 本轮修复：控件停在“正在读取保温设置…”
 

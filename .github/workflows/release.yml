@@ -33,13 +33,15 @@ name: release
 #     Environment:          (leave empty)
 #     Allowed actions:      npm publish
 #
-# Until that configuration exists, the publish step below fails. It fails with
-# `npm error code ENEEDAUTH`, which reads like a missing login but is not: npm's oidc()
-# exchange fails silently, and publish then reports that it has no credentials at all.
-# An earlier attempt using a token instead failed with `npm error code EOTP`, because this
-# account has 2FA and that token did not bypass it (run 36012163358). Both failures are
-# expected until the package exists and its trusted publisher is configured (run
-# 36016013119 for the OIDC shape).
+# The trusted publisher is configured, so this path is live and verified: `0.2.1-rc.2` was
+# published from here with no secret (run 36022617711). The notes below are the history of
+# getting there, kept because the failure signatures are easy to misread.
+#
+# Until that configuration existed the publish step failed with `npm error code ENEEDAUTH`,
+# which reads like a missing login but is not: npm's oidc() exchange fails silently, and
+# publish then reports that it has no credentials at all. Before that, an attempt using a
+# token failed with `npm error code EOTP`, because this account has 2FA and that token did
+# not bypass it (run 36012163358).
 on:
   push:
     tags: ['v*']
