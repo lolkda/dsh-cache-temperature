@@ -24,7 +24,7 @@ jobs:
 
       # Pinned here, not via a packageManager field: pnpm 12 would then write its own
       # platform binaries into pnpm-lock.yaml, which has nothing to do with this plugin.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         with:
           version: 12.4.2
 
