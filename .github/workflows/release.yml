@@ -33,9 +33,13 @@ name: release
 #     Environment:          (leave empty)
 #     Allowed actions:      npm publish
 #
-# Until that configuration exists, the publish step below fails — an earlier attempt using
-# a token instead failed here with `npm error code EOTP`, because this account has 2FA and
-# the token did not bypass it (run 36012163358).
+# Until that configuration exists, the publish step below fails. It fails with
+# `npm error code ENEEDAUTH`, which reads like a missing login but is not: npm's oidc()
+# exchange fails silently, and publish then reports that it has no credentials at all.
+# An earlier attempt using a token instead failed with `npm error code EOTP`, because this
+# account has 2FA and that token did not bypass it (run 36012163358). Both failures are
+# expected until the package exists and its trusted publisher is configured (run
+# 36016013119 for the OIDC shape).
 on:
   push:
     tags: ['v*']

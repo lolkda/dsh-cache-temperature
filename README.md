@@ -98,12 +98,32 @@ git push origin v0.2.1-rc.1
 
 dist-tag 跟随版本号：预发布（如 `0.2.1-rc.1`）发到 `next`，不动 `latest`；正式版本才发到 `latest`。因此预发布必须显式安装 `@next`。预发布不覆盖 `latest` 是有意的：本插件的兼容性按 DSH 版本固定，被旧部署装上的 rc 会被版本门禁拒绝。
 
-认证用仓库 secret `NPM_TOKEN`。这里有两条实测约束：
+认证用 npm trusted publishing（OIDC）：仓库里没有 `NPM_TOKEN` secret，也不该有——runner 的 OIDC 凭据被换成短时发布凭据，没有长期有效的写权限 token 可泄露或轮换，npm 还会附上 provenance。工作流里的 `id-token: write` 就是这次交换的前提。
 
-1. **该账号开了 2FA，token 必须开启 "Bypass 2FA" 才能在 CI 里直接发布。** 首次尝试（run 36012163358）在 `npm publish` 处失败于 `npm error code EOTP`：npm 要求一次性口令，runner 无法提供。可用 `curl -H "Authorization: Bearer $TOKEN" https://registry.npmjs.org/-/npm/v1/tokens` 查看 `bypass_2fa` 字段。npm 计划 2027 年 1 月取消 bypass-2FA token 的直接发布权限，所以这只是启动手段，不是终态。
-2. **终态是 trusted publishing（OIDC），它不需要任何 secret。** 但它无法提前配置：npm 只对已存在的包开放该设置（[npm/cli#8910](https://github.com/npm/cli/issues/8910) 里维护者确认"必须先用 token 发布一次"）。首次发布成功后，在 npm 包页 Settings → Trusted Publisher 填 `lolkda` / `dsh-cache-temperature` / `release.yml`（Environment 留空，Allowed actions 选 `npm publish`），然后删掉 `NPM_TOKEN` secret 与工作流里的 `NODE_AUTH_TOKEN` 一行即可。`id-token: write` 已经就位。
+**但 trusted publishing 只能配置在已经存在的包上**，所以它无法覆盖第一次发布。首次发布必须由维护者用 2FA 手工做一次：
 
-工作流的注释里记录了同样的信息，改的人不必再踩一遍。
+```sh
+npm login                                             # 浏览器或 OTP
+npm publish --access public --tag next                # 在本仓库根目录
+```
+
+发布成功后，在 npm 包页配置 trusted publisher，之后 CI 就能在没有任何 secret 的情况下发布：
+
+```
+npmjs.com -> @lolkda/dsh-cache-temperature -> Settings -> Trusted Publisher
+  Organization or user: lolkda
+  Repository:           dsh-cache-temperature
+  Workflow filename:    release.yml
+  Environment:          (留空)
+  Allowed actions:      npm publish
+```
+
+配置好之后用 `gh workflow run release.yml -f publish=true` 就能跑一次发布（走 dispatch 不会建 GitHub Release，只有推 tag 才建）。
+
+两条实测记录，供改的人少踩一次：
+
+1. 用 token 发布时失败于 `npm error code EOTP`（run 36012163358）：该账号开了 2FA，而当时 secret 里的 granular token `bypass_2fa: false`，npm 要求一次性口令，runner 无法提供。npm 计划 2027 年 1 月取消 bypass-2FA token 的直接发布权限，这条路迟早要换。
+2. 改成 OIDC 后失败于 `npm error code ENEEDAUTH`（run 36016013119）：这不是"没配好 OIDC"，而是包还没有 trusted publisher。npm 的 `oidc()` 交换失败时**不抛错**，随后发现无任何凭据才报 `ENEEDAUTH`（见 npm CLI 的 `lib/commands/publish.js` 与 `lib/utils/oidc.js`）。所以首次发布之前这一步必然失败，属于预期。
 
 ## 验证状态
 
