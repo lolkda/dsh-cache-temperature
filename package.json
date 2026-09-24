@@ -1,6 +1,6 @@
 {
   "name": "@lolkda/dsh-cache-temperature",
-  "version": "0.2.1-rc.2",
+  "version": "0.2.1",
   "type": "module",
   "description": "Per-session DSH prompt cache keepalive",
   "repository": {

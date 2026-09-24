@@ -1,8 +1,23 @@
 # 验证记录
 
-## 当前交付状态（0.2.1-rc.2）
+## npm 安装态验收（本轮补做，针对改名风险）
 
-- 目标包：`@lolkda/dsh-cache-temperature`，已发布到 npm 两个版本：`0.2.1-rc.1`（维护者 2FA 手工首发布，`latest` 与 `next` 都指向它——npm 会把首次发布的版本强制设为 `latest`）与 `0.2.1-rc.2`（CI 零 secret OIDC 发布，`next` 指向它，`latest` 保持 rc.1）。工作区构建产物 `artifacts/dsh-0.1.7-rc.1-fixed/local-dsh-cache-temperature-0.2.1-rc.1.tgz`。
+在隔离 `DSH_HOME`（`artifacts/npm-acceptance/home`，独立端口 3081，未触碰运行中的 3080 实例）里，从零初始化干净 profile 并走真实 npm 安装路径：`dsh plugin --profile web add @lolkda/dsh-cache-temperature@next`，装入 `0.2.1-rc.2`。这一项针对的正是改名后最脆弱的一环——loader 能否按**新包名**解析 bundle。
+
+| 检查项 | 结果 |
+| --- | --- |
+| 组合后的 profile 树 | 含 `- id: cache-keepalive` / `name: '@lolkda/dsh-cache-temperature'`（`--dump-config`），条目 id 未变、名称随新包名解析成功 |
+| 隔离实例启动 | 日志仅有启动 URL，无 skipped bundle、无兼容性阻拦、无插件相关报错（对比 0.1.1 当时被版本门禁拦截） |
+| 客户端半体登记 | boot wire 中出现 `{"id":"@lolkda/dsh-cache-temperature","url":"plugins/??@lolkda/dsh-cache-temperature/client.js&rev=..."}`，并带正确的 `inject` 列表 |
+| 四方字节比对 | 仓库构建 = registry tarball = 隔离 profile 安装副本，`lib/client.js` 均为 `83a6ef56…`，`lib/index.js` 均为 `2ea5eda6…` |
+| 服务端实际下发 | `plugins/??…/client.js` 返回 200；前 61,087 字节与构建产物逐字节一致，唯一差异是末尾追加 87 字节 `//# sourceMappingURL=…`（DSH 客户端模块服务的包装） |
+| `--dump-config-schema` 的 4 条 `unrecognized Loader tree carrier` | **与本包无关**：在不含本包的对照 home（`artifacts/compat-0.1.7-rc.1/fixed-home`）上跑同一条命令出现完全相同的 4 条（索引 173–176）。因此该命令的 `status` 字段不能作为本包证据，本次验收不依赖它 |
+
+尚未覆盖（与 README 一致，属于另行执行的交互验收）：浏览器里设置控件的实际读写、以及真实会话中的保温请求。改名不影响这两项（设置命名空间 `cache-keepalive` 与包名无关），但它们仍未在本轮实测。
+
+## 当前交付状态（0.2.1）
+
+- 目标包：`@lolkda/dsh-cache-temperature`，已发布到 npm：`0.2.1-rc.1`（维护者 2FA 手工首发布）、`0.2.1-rc.2`（CI 零 secret OIDC 发布）、`0.2.1`（首个正式版，发布后 `latest` 指向它；`next` 保持 `0.2.1-rc.2`）。npm 会把**首次**发布的版本强制设为 `latest`，所以 `0.2.1` 发布前 `latest` 一直停在 rc 版本上。工作区构建产物 `artifacts/dsh-0.1.7-rc.1-fixed/local-dsh-cache-temperature-0.2.1-rc.1.tgz`。
 - 已通过 `dsh plugin --profile web add` 写入当前 Web Profile（`/app/.dsh/profiles/web`），安装副本的 `lib/index.js` 与工作区构建逐字节一致。
 - **激活仍为 `restart-required`：运行中的 DSH 进程加载的是旧模块，必须重启进程；刷新网页不能代替。** 重启后必须重新确认页面控件可用。
 - 改名影响面已核对：设置命名空间仍为 `cache-keepalive`，与包名无关，已保存的会话设置不受影响；但 loader 条目 `cordis.patch.yml` 与浏览器 bundle banner 必须同时指向新包名，否则安装后无法解析。两处已改，并由 `tests/integration/built-artifacts.test.ts`（产物 id 必须等于 manifest 名称）与 `tests/shared/configuration.test.ts`（patch 名称必须等于 manifest 名称）分别守住，两个守卫都先观察过 RED。
