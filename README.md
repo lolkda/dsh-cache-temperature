@@ -58,10 +58,18 @@ pnpm check
 - 类型检查与打包分离；第三方已发布声明使用 skipLibCheck，项目源码仍保持严格检查。
 - 测试使用 Vitest、可控时钟和适配器，不在单元测试中等待真实分钟。
 - 不修改 DSH 核心、内置 preset、默认浏览器根节点或安装目录。
+- `pnpm check` 在测试之后追加两道发布门禁：`check:build` 证明提交的 `lib/` 就是这批源码的构建结果，`check:pack` 证明 npm 会打出的 tarball 带着 bundle patch、浏览器半体和已构建的 Host，且不含源码、测试与本地取证目录。`lib/` 随包发布，所以陈旧的提交会把与源码不符的产物发给每个安装者。
 
 ## 安装
 
-先完成构建并打成预构建包，再通过当前 DSH 的 `plugin_manager` 安装 `.tgz` 的绝对路径：
+正式安装走 npm，兼容性按 DSH 版本固定在包版本上：
+
+```sh
+dsh plugin --profile web add @lolkda/dsh-cache-temperature@next   # 预发布
+dsh plugin --profile web add @lolkda/dsh-cache-temperature        # 稳定版
+```
+
+从源码或本地改动安装时，改为打成预构建包，再通过当前 DSH 的 `plugin_manager` 安装 `.tgz` 的绝对路径：
 
 ```sh
 pnpm build
@@ -70,9 +78,27 @@ pnpm pack --pack-destination artifacts
 
 不要直接链接工作区目录安装。DSH 的真实请求标记依赖同一份模型模块实例；工作区软链接可能绕过 Profile 的模块解析，让插件与 Agent loop 使用两份模块而无法识别请求。安装后的实际请求路径仍须验证。
 
+本包此前在工作区内用占位名 `@local/dsh-cache-temperature`，发布身份是 `@lolkda/dsh-cache-temperature`。若当前 Profile 里装的是旧占位名的副本，切换到 npm 版本前必须先移除它：两份 bundle 的 loader 条目 id 都是 `cache-keepalive`，同时存在会冲突。设置命名空间与包名无关，移除重装不影响已保存的会话设置。
+
 安装影响当前 Profile 的可用插件集合，设置仍按会话独立。
 
 本包无安装脚本。若激活结果为 `restart-required`，需在重启后继续验证；保存成功不等于插件已经运行。禁用或移除本 bundle 可停止其保温工作。
+
+## 发布
+
+发布只由版本 tag 触发，没有别的入口，避免误发（npm 无法撤回已占用的版本号）：
+
+```sh
+node -p "require('./package.json').version"   # 确认要发布的版本
+git tag v0.2.1-rc.1
+git push origin v0.2.1-rc.1
+```
+
+`.github/workflows/release.yml` 随后在干净环境里安装依赖、跑完整检查与两道门禁、校验 tag 与 `package.json` 版本一致，再执行 `npm publish --provenance --access public`，最后建一个 GitHub Release。`ci.yml` 在每次 push main 和 PR 时跑同样的检查，但不接触 npm。
+
+dist-tag 跟随版本号：预发布（如 `0.2.1-rc.1`）发到 `next`，不动 `latest`；正式版本才发到 `latest`。因此预发布必须显式安装 `@next`。预发布不覆盖 `latest` 是有意的：本插件的兼容性按 DSH 版本固定，被旧部署装上的 rc 会被版本门禁拒绝。
+
+认证用仓库 secret `NPM_TOKEN`（granular access token，权限 `package:write`，会过期，需要轮换）。更好的终态是 npm trusted publishing（OIDC），它不需要任何 secret：在 npm 包页 Settings → Trusted Publisher 填 `lolkda` / `dsh-cache-temperature` / `release.yml`（Environment 留空）即可，工作流里的 `id-token: write` 已经就位。首次发布用不了它，因为 npm 只对已存在的包开放该设置。
 
 ## 验证状态
 

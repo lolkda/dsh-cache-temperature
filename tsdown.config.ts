@@ -1,4 +1,11 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'tsdown'
+
+// The browser half registers itself under the package name: DSH resolves a client module
+// by the name in package.json, so the artifact has to agree with the manifest. Read it
+// instead of repeating it — a rename that misses this banner is a bundle nobody can load,
+// and tests/integration/built-artifacts.test.ts compares the two.
+const MANIFEST = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { name: string }
 
 export default defineConfig([
   {
@@ -23,7 +30,7 @@ export default defineConfig([
     noExternal: ['@deepseek-ai/schemastery', 'zod'],
     outExtensions: () => ({ js: '.js' }),
     outputOptions: {
-      banner: 'window.__ModuleLoader__.load({id:"@local/dsh-cache-temperature",factory(require){const module={exports:{}};const exports=module.exports;',
+      banner: `window.__ModuleLoader__.load({id:"${MANIFEST.name}",factory(require){const module={exports:{}};const exports=module.exports;`,
       footer: 'return module.exports;}});',
     },
   },

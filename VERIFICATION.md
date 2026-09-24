@@ -2,9 +2,11 @@
 
 ## 当前交付状态（0.2.1-rc.1）
 
-- 目标包：`@local/dsh-cache-temperature@0.2.1-rc.1`，构建产物 `artifacts/dsh-0.1.7-rc.1-fixed/local-dsh-cache-temperature-0.2.1-rc.1.tgz`。
+- 目标包：`@lolkda/dsh-cache-temperature@0.2.1-rc.1`（发布身份；此前工作区内的占位名 `@local/dsh-cache-temperature` 已弃用），构建产物 `artifacts/dsh-0.1.7-rc.1-fixed/local-dsh-cache-temperature-0.2.1-rc.1.tgz`。
 - 已通过 `dsh plugin --profile web add` 写入当前 Web Profile（`/app/.dsh/profiles/web`），安装副本的 `lib/index.js` 与工作区构建逐字节一致。
 - **激活仍为 `restart-required`：运行中的 DSH 进程加载的是旧模块，必须重启进程；刷新网页不能代替。** 重启后必须重新确认页面控件可用。
+- 改名影响面已核对：设置命名空间仍为 `cache-keepalive`，与包名无关，已保存的会话设置不受影响；但 loader 条目 `cordis.patch.yml` 与浏览器 bundle banner 必须同时指向新包名，否则安装后无法解析。两处已改，并由 `tests/integration/built-artifacts.test.ts`（产物 id 必须等于 manifest 名称）与 `tests/shared/configuration.test.ts`（patch 名称必须等于 manifest 名称）分别守住，两个守卫都先观察过 RED。
+- 发布链路：`.github/workflows/ci.yml` 在 push main 与 PR 上跑完整检查加两道门禁；`.github/workflows/release.yml` 只由 `v*` tag 触发，发布前校验 tag 与 `package.json` 版本一致，预发布发到 dist-tag `next`。首次发布使用 `NPM_TOKEN` secret（granular token，`package:write`，2026-12-23 到期，需轮换），此后可切到 npm trusted publishing（OIDC）。
 
 ### 本轮修复：控件停在“正在读取保温设置…”
 

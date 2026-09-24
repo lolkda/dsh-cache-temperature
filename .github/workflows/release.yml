@@ -1,0 +1,100 @@
+name: release
+
+# Publishing happens on a version tag and nowhere else:
+#
+#   node -p "require('./package.json').version"      # what will be published
+#   git tag v0.2.2 && git push origin v0.2.2
+#
+# The tag is the confirmation, so nothing reaches npm by accident. The dist-tag follows
+# the version: a prerelease (`0.2.1-rc.1`) publishes under `next` and leaves `latest` on
+# the newest stable, while a plain version publishes as `latest`. Install a prerelease
+# explicitly:
+#
+#   dsh plugin --profile web add @lolkda/dsh-cache-temperature@next
+#
+# Authentication is the NPM_TOKEN repository secret, holding a granular npm access token
+# with package:write (it expires, so it has to be rotated). The alternative, and the
+# better end state, is npm trusted publishing, which needs no secret at all — set it up
+# once on the package page:
+#
+#   npmjs.com -> @lolkda/dsh-cache-temperature -> Settings -> Trusted Publisher
+#     Organization or user: lolkda
+#     Repository:           dsh-cache-temperature
+#     Workflow filename:    release.yml
+#     Environment:          (leave empty)
+#
+# `id-token: write` below is already in place for that switch: npm then exchanges this
+# run's OIDC token for a short-lived publish credential. The bootstrap publish could not
+# use it, because npm only offers trusted publishing for a package that already exists.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish to npm (the tag path publishes without asking)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # open the GitHub release
+  id-token: write   # provenance, and trusted publishing once it is configured
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm build
+      - run: pnpm test
+
+      - name: committed lib/ must be a build of these sources
+        run: pnpm check:build
+
+      - name: the tarball must carry the bundle patch, the browser half, and the built host
+        run: pnpm check:pack
+
+      # A tag that disagrees with the manifest would publish something other than what it
+      # claims, and npm has no way to take a version back.
+      - name: the tag must name the version in package.json
+        if: github.event_name == 'push'
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          tag="${GITHUB_REF_NAME#v}"
+          echo "tag ${GITHUB_REF_NAME} / package.json ${version}"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match package.json ${version}"
+            exit 1
+          fi
+
+      - name: publish to npm
+        if: github.event_name == 'push' || inputs.publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          # A prerelease must not take `latest` away from the newest stable: this plugin's
+          # compatibility is pinned per DSH release, so an rc build installed by an older
+          # deployment is a plugin the version gate refuses.
+          tag=latest
+          case "$version" in *-*) tag=next ;; esac
+          echo "publishing ${version} under dist-tag ${tag}"
+          npm publish --provenance --access public --tag "$tag"
+
+      - name: GitHub release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes --title "$GITHUB_REF_NAME"

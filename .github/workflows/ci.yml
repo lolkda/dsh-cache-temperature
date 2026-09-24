@@ -1,0 +1,51 @@
+name: ci
+
+# Every push to main and every pull request: build from source, run the suite, and prove
+# the committed build output still matches the sources. Nothing here talks to npm —
+# releasing is release.yml, triggered by a tag.
+#
+# Ubuntu only, on purpose: nothing in this repo has been verified on Windows yet, and a
+# platform in the matrix that nobody has run is a green check that means nothing. Add
+# windows-latest here once someone has actually run the suite there.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned here, not via a packageManager field: pnpm 12 would then write its own
+      # platform binaries into pnpm-lock.yaml, which has nothing to do with this plugin.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm build
+      - run: pnpm test
+
+      # `lib/` ships as-is, so a stale committed build would be served to everyone
+      # installing from this commit. This compares the fresh build against what the
+      # commit carries.
+      - name: committed lib/ must be a build of these sources
+        run: pnpm check:build
+
+      # The manifest contract npm publishes: the bundle patch, the browser half, the
+      # built host. Metadata and build output, so no unit test covers it — this is the gate.
+      - name: the tarball must carry the bundle patch, the browser half, and the built host
+        run: pnpm check:pack

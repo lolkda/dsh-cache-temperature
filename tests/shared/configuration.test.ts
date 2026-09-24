@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +8,10 @@ import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import SettingsForms from '@deepseek-ai/dsh-settings'
 import { expect, it, onTestFinished } from 'vitest'
 import { SETTINGS_NAMESPACE, decodeSettingsDocument, settingsSchema } from '../../src/shared/settings.ts'
+
+/** The published identity: DSH resolves this bundle by the name in package.json, and
+ * `cordis.patch.yml` has to name it — a mismatch is a bundle that never loads. */
+const MANIFEST = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { name: string }
 
 /** Native Loader and persistent configuration editor over a temporary profile. */
 async function mountSettings(): Promise<Context> {
@@ -49,10 +53,10 @@ async function mountSettings(): Promise<Context> {
   return ctx
 }
 
-it('keeps the legacy settings namespace as the actual bundle entry id', () => {
+it('keeps the legacy settings namespace as the actual bundle entry id, under the published package name', () => {
   const patch = fileURLToPath(new URL('../../cordis.patch.yml', import.meta.url))
   expect(loadOverlayPatches('cache-test', patch)).toEqual([{ insert: [
-    { id: SETTINGS_NAMESPACE, name: '@local/dsh-cache-temperature' },
+    { id: SETTINGS_NAMESPACE, name: MANIFEST.name },
   ] }])
 })
 
