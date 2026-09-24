@@ -6,7 +6,7 @@
 - 已通过 `dsh plugin --profile web add` 写入当前 Web Profile（`/app/.dsh/profiles/web`），安装副本的 `lib/index.js` 与工作区构建逐字节一致。
 - **激活仍为 `restart-required`：运行中的 DSH 进程加载的是旧模块，必须重启进程；刷新网页不能代替。** 重启后必须重新确认页面控件可用。
 - 改名影响面已核对：设置命名空间仍为 `cache-keepalive`，与包名无关，已保存的会话设置不受影响；但 loader 条目 `cordis.patch.yml` 与浏览器 bundle banner 必须同时指向新包名，否则安装后无法解析。两处已改，并由 `tests/integration/built-artifacts.test.ts`（产物 id 必须等于 manifest 名称）与 `tests/shared/configuration.test.ts`（patch 名称必须等于 manifest 名称）分别守住，两个守卫都先观察过 RED。
-- 发布链路：`.github/workflows/ci.yml` 在 push main 与 PR 上跑完整检查加两道门禁；`.github/workflows/release.yml` 只由 `v*` tag 触发，发布前校验 tag 与 `package.json` 版本一致，预发布发到 dist-tag `next`。首次发布使用 `NPM_TOKEN` secret（granular token，`package:write`，2026-12-23 到期，需轮换），此后可切到 npm trusted publishing（OIDC）。
+- 发布链路：`.github/workflows/ci.yml` 在 push main 与 PR 上跑完整检查加两道门禁；`.github/workflows/release.yml` 只由 `v*` tag 触发，发布前校验 tag 与 `package.json` 版本一致，预发布发到 dist-tag `next`。推 tag `v0.2.1-rc.1`（commit `855ce8f`，与 main HEAD 一致）实测：安装、类型检查、lint、构建、198 个测试、两道门禁、tag 与版本一致性校验全部通过，`npm publish` 失败于 `npm error code EOTP`。原因是该账号启用 2FA，而 secret 中的 granular token `bypass_2fa: false`，npm 要求一次性口令；registry 侧无任何写入，`@lolkda/dsh-cache-temperature` 仍为 404，没有半成品版本。**因此 npm 上仍未发布，首次发布尚未完成。** 解除方式见 README 发布一节：换成开启 Bypass 2FA 的 token，或先在本地用 OTP 完成首发布再切 trusted publishing。
 
 ### 本轮修复：控件停在“正在读取保温设置…”
 

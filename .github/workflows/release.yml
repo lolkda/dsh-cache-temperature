@@ -12,20 +12,31 @@ name: release
 #
 #   dsh plugin --profile web add @lolkda/dsh-cache-temperature@next
 #
-# Authentication is the NPM_TOKEN repository secret, holding a granular npm access token
-# with package:write (it expires, so it has to be rotated). The alternative, and the
-# better end state, is npm trusted publishing, which needs no secret at all — set it up
-# once on the package page:
+# Authentication is the NPM_TOKEN repository secret. Two facts about it, both learned on
+# the first release attempt (run 36012163358, which got as far as `npm error code EOTP`):
+#
+# 1. This account has 2FA enabled, so a granular token whose bypass-2FA flag is off cannot
+#    publish directly — npm demands a one-time password, which a runner cannot supply. The
+#    secret therefore has to hold a granular token with bypass-2FA enabled (`bypass_2fa:
+#    true`; check it with `curl -H "Authorization: Bearer $TOKEN"
+#    https://registry.npmjs.org/-/npm/v1/tokens`). npm is targeting January 2027 to remove
+#    direct publishing from bypass-2FA tokens, so this is a bootstrap mechanism, not the
+#    destination: https://github.blog/changelog/2026-07-31-restricting-npm-bypass-2fa-granular-access-tokens/
+#
+# 2. The destination is trusted publishing (OIDC), which needs no secret and cannot leak
+#    one. It cannot be configured up front — npm only offers the setting on a package that
+#    already exists, so the first publish has to happen by token first. Afterwards, set it
+#    up once on the package page:
 #
 #   npmjs.com -> @lolkda/dsh-cache-temperature -> Settings -> Trusted Publisher
 #     Organization or user: lolkda
 #     Repository:           dsh-cache-temperature
 #     Workflow filename:    release.yml
 #     Environment:          (leave empty)
+#     Allowed actions:      npm publish
 #
-# `id-token: write` below is already in place for that switch: npm then exchanges this
-# run's OIDC token for a short-lived publish credential. The bootstrap publish could not
-# use it, because npm only offers trusted publishing for a package that already exists.
+#   then delete the NPM_TOKEN secret and the NODE_AUTH_TOKEN line below. `id-token: write`
+#   is already in place: npm exchanges this run's OIDC token for a short-lived credential.
 on:
   push:
     tags: ['v*']

@@ -98,7 +98,12 @@ git push origin v0.2.1-rc.1
 
 dist-tag 跟随版本号：预发布（如 `0.2.1-rc.1`）发到 `next`，不动 `latest`；正式版本才发到 `latest`。因此预发布必须显式安装 `@next`。预发布不覆盖 `latest` 是有意的：本插件的兼容性按 DSH 版本固定，被旧部署装上的 rc 会被版本门禁拒绝。
 
-认证用仓库 secret `NPM_TOKEN`（granular access token，权限 `package:write`，会过期，需要轮换）。更好的终态是 npm trusted publishing（OIDC），它不需要任何 secret：在 npm 包页 Settings → Trusted Publisher 填 `lolkda` / `dsh-cache-temperature` / `release.yml`（Environment 留空）即可，工作流里的 `id-token: write` 已经就位。首次发布用不了它，因为 npm 只对已存在的包开放该设置。
+认证用仓库 secret `NPM_TOKEN`。这里有两条实测约束：
+
+1. **该账号开了 2FA，token 必须开启 "Bypass 2FA" 才能在 CI 里直接发布。** 首次尝试（run 36012163358）在 `npm publish` 处失败于 `npm error code EOTP`：npm 要求一次性口令，runner 无法提供。可用 `curl -H "Authorization: Bearer $TOKEN" https://registry.npmjs.org/-/npm/v1/tokens` 查看 `bypass_2fa` 字段。npm 计划 2027 年 1 月取消 bypass-2FA token 的直接发布权限，所以这只是启动手段，不是终态。
+2. **终态是 trusted publishing（OIDC），它不需要任何 secret。** 但它无法提前配置：npm 只对已存在的包开放该设置（[npm/cli#8910](https://github.com/npm/cli/issues/8910) 里维护者确认"必须先用 token 发布一次"）。首次发布成功后，在 npm 包页 Settings → Trusted Publisher 填 `lolkda` / `dsh-cache-temperature` / `release.yml`（Environment 留空，Allowed actions 选 `npm publish`），然后删掉 `NPM_TOKEN` secret 与工作流里的 `NODE_AUTH_TOKEN` 一行即可。`id-token: write` 已经就位。
+
+工作流的注释里记录了同样的信息，改的人不必再踩一遍。
 
 ## 验证状态
 
